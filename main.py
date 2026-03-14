@@ -12,6 +12,15 @@ app = FastAPI(
     description="The backend engine for generating Data Protection Impact Assessments.",
     version="1.0.0"
 )
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allows any website to connect
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # A simple welcome message so we know the server is awake!
 @app.get("/")
