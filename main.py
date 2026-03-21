@@ -64,22 +64,28 @@ def add_formatted_text_to_word(doc, text):
     lines = text.split('\n')
     in_table = False
     table = None
+    
     for line in lines:
         line = line.strip()
         if not line:
             in_table = False
             continue
+            
         if line.startswith('|'):
             parts = line.split('|')
-            cells =[p.strip() for p in parts[1:-1]]
-            if len(cells) > 0 and all(c.replace('-', '').strip() == '' for c in cells):
+            cells = [p.strip() for p in parts[1:-1]]
+            
+            # --- THE FIX: Skip the row if it only contains dashes or colons ---
+            if all(all(c in '-: ' for c in cell) for cell in cells) and len(cells) > 0:
                 continue
+                
             if not in_table:
                 table = doc.add_table(rows=1, cols=len(cells))
                 table.style = 'Table Grid'
                 hdr_cells = table.rows[0].cells
                 for i, cell_text in enumerate(cells):
-                    hdr_cells[i].text = cell_text.replace('**', '').replace('<br>', '\n').strip()
+                    clean_text = cell_text.replace('**', '').replace('<br>', '\n').strip()
+                    hdr_cells[i].text = clean_text
                     if hdr_cells[i].paragraphs[0].runs:
                         hdr_cells[i].paragraphs[0].runs[0].bold = True 
                 in_table = True
@@ -102,7 +108,6 @@ def add_formatted_text_to_word(doc, text):
         else:
             p = doc.add_paragraph()
             _add_bold_runs(p, line)
-
 def _add_bold_runs(paragraph, text):
     parts = text.split('**')
     for i, part in enumerate(parts):
