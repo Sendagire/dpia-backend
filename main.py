@@ -28,10 +28,15 @@ def home():
     return {"message": "✅ DPIA Enterprise API is running 24/7!"}
 
 class ProjectDetails(BaseModel):
+    license_key: str = "FREE"
+    jurisdiction: str # The AI will use this to find the right law
     project_name: str
+    controller_name: str
     project_desc: str
     data_subjects: str
     data_collected: str
+    special_categories: str
+    lawful_basis: str
     retention: str
     third_parties: str
     initial_risk: str
