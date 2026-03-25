@@ -5,11 +5,11 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from litellm import completion
 from docx import Document
-import uvicorn
+from docx.shared import Pt, RGBColor, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 app = FastAPI()
 
-# 1. FIX CORS (The Bouncer)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,80 +18,156 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. SYNCED DATA MODEL (Matches your HTML payload exactly)
+# SYNCED DATA MODEL (Matches all 19 UI fields)
 class ProjectDetails(BaseModel):
     project_name: str = "N/A"
-    project_desc: str = "N/A"
-    data_subjects: str = "N/A"
-    data_collected: str = "N/A"
-    retention_period: str = "N/A"
-    third_parties: str = "N/A"
-    initial_risk: str = "Medium"
-    license_key: str = "FREE"
     geo_scope: str = "N/A"
     lawful_basis: str = "N/A"
+    data_subjects: str = "N/A"
     collection_source: str = "N/A"
-    purpose_assessment: str = "N/A"
+    project_desc: str = "N/A"
+    data_collected: str = "N/A"
     transparency_measures: str = "N/A"
     data_minimization: str = "N/A"
     data_quality: str = "N/A"
     security_measures: str = "N/A"
+    third_parties: str = "N/A"
     intl_transfers: str = "N/A"
+    retention_period: str = "N/A"
     retention_policy: str = "N/A"
     individual_rights: str = "N/A"
+    initial_risk: str = "Medium"
+    license_key: str = "FREE"
 
 class FinalReportRequest(ProjectDetails):
     identified_risks: str = "N/A"
 
+def add_formatted_text_to_word(doc, text):
+    lines = text.split('\n')
+    in_table = False
+    table = None
+    for line in lines:
+        line = line.strip()
+        if not line:
+            in_table = False
+            continue
+        if line.startswith('|'):
+            parts = line.split('|')
+            cells = [p.strip() for p in parts[1:-1]]
+            if all(all(c in '-: ' for c in cell) for cell in cells) and len(cells) > 0:
+                continue
+            if not in_table:
+                table = doc.add_table(rows=1, cols=len(cells))
+                table.style = 'Table Grid'
+                hdr_cells = table.rows[0].cells
+                for i, cell_text in enumerate(cells):
+                    hdr_cells[i].text = cell_text.replace('**', '').strip()
+                    for paragraph in hdr_cells[i].paragraphs:
+                        run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
+                        run.bold = True
+                in_table = True
+            else:
+                row_cells = table.add_row().cells
+                for i, cell_text in enumerate(cells):
+                    if i < len(row_cells):
+                        row_cells[i].text = cell_text.replace('**', '').replace('<br>', '\n').strip()
+            continue
+        else:
+            in_table = False
+        if line.startswith('## '):
+            h = doc.add_heading(line[3:], level=2)
+        elif line.startswith('# '):
+            h = doc.add_heading(line[2:], level=1)
+        elif line.startswith('- ') or line.startswith('* '):
+            p = doc.add_paragraph(line[2:], style='List Bullet')
+        else:
+            p = doc.add_paragraph()
+            parts = line.split('**')
+            for i, part in enumerate(parts):
+                run = p.add_run(part)
+                if i % 2 != 0: run.bold = True
+
 @app.get("/")
 def home():
-    return {"message": "DPIA API is Online"}
+    return {"message": "Global DPIA Engine Online"}
 
 @app.post("/api/analyze")
 async def analyze_risks(data: ProjectDetails):
-    # This prompt tells the AI to use all your new audit criteria
     prompt = f"""
-    Act as a Senior Privacy Counsel. Conduct a professional DPIA risk assessment.
+    Act as a Global Privacy Counsel. Conduct a high-level risk assessment for:
+    Project: {data.project_name} | Scope: {data.geo_scope} | Law: Universal Standards/GDPR/Local
+    Details: {data.project_desc} | Data: {data.data_collected}
+    Minimization: {data.data_minimization} | Security: {data.security_measures}
     
-    AUDIT CRITERIA:
-    - PROJECT: {data.project_name}
-    - GEOGRAPHIC SCOPE: {data.geo_scope}
-    - PURPOSE: {data.purpose_assessment}
-    - LAWFUL BASIS: {data.lawful_basis}
-    - SOURCE OF DATA: {data.collection_source}
-    - DATA MINIMIZATION: {data.data_minimization}
-    - SECURITY MEASURES: {data.security_measures}
-    - DATA QUALITY: {data.data_quality}
-    - INDIVIDUAL RIGHTS: {data.individual_rights}
-    - RETENTION: {data.retention_period}
-    
-    Please provide a structured legal analysis of potential privacy risks and technical mitigations.
+    Identify 3-5 key privacy risks and mitigation requirements.
     """
     try:
-        # Using Gemini 2.5 Flash
         response = completion(model="gemini/gemini-2.5-flash", messages=[{"role": "user", "content": prompt}])
         return {"status": "success", "risks": response.choices[0].message.content}
     except Exception as e:
-        print(f"CRASH ERROR: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/generate-report")
 async def generate_final_report(data: FinalReportRequest):
     try:
         doc = Document()
-        doc.add_heading('Data Protection Impact Assessment (DPIA)', 0)
         
-        # Adding Project Summary
-        doc.add_heading('1. Project Overview', level=1)
-        doc.add_paragraph(f"Project Name: {data.project_name}")
-        doc.add_paragraph(f"Geographic Scope: {data.geo_scope}")
-        doc.add_paragraph(f"Lawful Basis: {data.lawful_basis}")
+        # Professional Header Style
+        title = doc.add_heading('DATA PROTECTION IMPACT ASSESSMENT', 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        doc.add_heading('2. Risk Assessment Findings', level=1)
-        doc.add_paragraph(data.identified_risks)
+        # 1. Project Identity Table
+        doc.add_heading('1. Information Asset & Processing Context', level=1)
+        meta = doc.add_table(rows=7, cols=2)
+        meta.style = 'Table Grid'
+        items = [
+            ("Project Name", data.project_name),
+            ("Geographic Scope", data.geo_scope),
+            ("Lawful Basis", data.lawful_basis),
+            ("Data Subjects", data.data_subjects),
+            ("Collection Source", data.collection_source),
+            ("Retention Period", data.retention_period),
+            ("Initial Risk Level", data.initial_risk)
+        ]
+        for i, (label, val) in enumerate(items):
+            meta.cell(i,0).text = label
+            meta.cell(i,0).paragraphs[0].runs[0].bold = True
+            meta.cell(i,1).text = str(val)
+
+        # AI Prompt for Global Tone
+        prompt = f"""
+        Act as a Senior Global Privacy Consultant. Write a formal DPIA Report for the project '{data.project_name}'.
         
-        file_path = f"/tmp/DPIA_Report.docx"
+        The audit covers: {data.project_desc}
+        Data Points: {data.data_collected}
+        Security: {data.security_measures}
+        Individual Rights: {data.individual_rights}
+        International Transfers: {data.intl_transfers}
+        
+        Structure the report as follows:
+        ## 2. Executive Summary
+        (A professional summary of the processing activity and compliance posture)
+        
+        ## 3. Data Governance Analysis
+        (Evaluate transparency, minimization, and quality)
+        
+        ## 4. Formal Risk Assessment Matrix
+        (Provide a Markdown table with these columns: | Privacy Risk | Recommended Mitigation | Audit Evidence Required |)
+        
+        ## 5. Global Compliance Determination
+        (Final statement on whether the residual risk is acceptable for global operations)
+        
+        Tone: Corporate, Authoritative, Neutral. No mention of AI.
+        """
+        
+        response = completion(model="gemini/gemini-2.5-flash", messages=[{"role": "user", "content": prompt}])
+        add_formatted_text_to_word(doc, response.choices[0].message.content)
+        
+        # Footer
+        doc.add_paragraph("\nReport generated by DPIA Enterprise Systems. Valid for global audit purposes.")
+
+        file_path = f"/tmp/Report.docx"
         doc.save(file_path)
-        return FileResponse(path=file_path, filename=f"{data.project_name}_DPIA.docx")
+        return FileResponse(path=file_path, filename=f"Global_DPIA_{data.project_name}.docx")
     except Exception as e:
         return {"status": "error", "message": str(e)}
