@@ -28,13 +28,21 @@ def home():
     return {"message": "✅ DPIA Enterprise API is running 24/7!"}
 
 class ProjectDetails(BaseModel):
-    license_key: str 
+    license_key: str = "FREE"
     project_name: str
     project_desc: str
+    geo_scope: str # NEW
     data_subjects: str
     data_collected: str
-    retention: str
-    third_parties: str
+    collection_source: str # NEW
+    purpose_assessment: str # NEW
+    transparency_measures: str # NEW
+    data_minimization: str # NEW
+    data_quality: str # NEW
+    security_measures: str # NEW
+    intl_transfers: str # NEW
+    retention_policy: str # NEW
+    individual_rights: str # NEW
     initial_risk: str
 
 class FinalReportRequest(ProjectDetails):
