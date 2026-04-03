@@ -133,7 +133,8 @@ async def generate_final_report(data: FinalReportRequest):
         ## 5. Formal Risk Assessment Matrix (Markdown table: Risk | Mitigation | Evidence | Comment)
         ## 6. Final Risk Rating & Justification
         (Justify based on mitigations provided: {data.security_measures}, {data.data_minimization}, {data.individual_rights})
-        
+
+        CRITICAL: In every table generated, the 'Comment' column must be completely empty (containing only whitespace). This is to allow the end-user to manually type their own notes into the Word document after downloading.
         Tone: Corporate, Authoritative. No AI mentions.
         """
         response = completion(model="gemini/gemini-2.5-flash", messages=[{"role": "user", "content": prompt}])
