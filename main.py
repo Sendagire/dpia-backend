@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# SYNCED DATA MODEL (Matches all 19 UI fields)
+# SYNCED DATA MODEL - Matches your HTML IDs exactly
 class ProjectDetails(BaseModel):
     project_name: str = "N/A"
     geo_scope: str = "N/A"
@@ -34,7 +34,6 @@ class ProjectDetails(BaseModel):
     third_parties: str = "N/A"
     intl_transfers: str = "N/A"
     retention_period: str = "N/A"
-    retention_policy: str = "N/A"
     individual_rights: str = "N/A"
     initial_risk: str = "Medium"
     license_key: str = "FREE"
@@ -62,9 +61,8 @@ def add_formatted_text_to_word(doc, text):
                 hdr_cells = table.rows[0].cells
                 for i, cell_text in enumerate(cells):
                     hdr_cells[i].text = cell_text.replace('**', '').strip()
-                    for paragraph in hdr_cells[i].paragraphs:
-                        run = paragraph.runs[0] if paragraph.runs else paragraph.add_run()
-                        run.bold = True
+                    if hdr_cells[i].paragraphs[0].runs:
+                        hdr_cells[i].paragraphs[0].runs[0].bold = True 
                 in_table = True
             else:
                 row_cells = table.add_row().cells
@@ -75,11 +73,11 @@ def add_formatted_text_to_word(doc, text):
         else:
             in_table = False
         if line.startswith('## '):
-            h = doc.add_heading(line[3:], level=2)
+            doc.add_heading(line[3:], level=2)
         elif line.startswith('# '):
-            h = doc.add_heading(line[2:], level=1)
+            doc.add_heading(line[2:], level=1)
         elif line.startswith('- ') or line.startswith('* '):
-            p = doc.add_paragraph(line[2:], style='List Bullet')
+            doc.add_paragraph(line[2:], style='List Bullet')
         else:
             p = doc.add_paragraph()
             parts = line.split('**')
@@ -87,16 +85,14 @@ def add_formatted_text_to_word(doc, text):
                 run = p.add_run(part)
                 if i % 2 != 0: run.bold = True
 
-@app.get("/")
-def home():
-    return {"message": "Global DPIA Engine Online"}
-
 @app.post("/api/analyze")
 async def analyze_risks(data: ProjectDetails):
     prompt = f"""
-    Act as a Global Privacy Counsel. Conduct a high-level risk assessment for:
-    Project: {data.project_name} | Scope: {data.geo_scope}
-    Identify 3-5 key privacy risks and mitigation requirements.
+    Act as a Global Privacy Counsel. Conduct a DPIA risk assessment for '{data.project_name}'.
+    Scope: {data.geo_scope} | Source: {data.collection_source} | Data: {data.data_collected}
+    Minimization: {data.data_minimization} | Security: {data.security_measures} | Rights: {data.individual_rights}
+    
+    Identify 3-5 risks and mitigations based on these specific inputs.
     """
     try:
         response = completion(model="gemini/gemini-2.5-flash", messages=[{"role": "user", "content": prompt}])
@@ -111,17 +107,13 @@ async def generate_final_report(data: FinalReportRequest):
         title = doc.add_heading('DATA PROTECTION IMPACT ASSESSMENT', 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        # 1. Project Context Table
         doc.add_heading('1. Information Asset & Processing Context', level=1)
         meta = doc.add_table(rows=7, cols=2)
         meta.style = 'Table Grid'
         items = [
-            ("Project Name", data.project_name),
-            ("Geographic Scope", data.geo_scope),
-            ("Lawful Basis", data.lawful_basis),
-            ("Data Subjects", data.data_subjects),
-            ("Collection Source", data.collection_source),
-            ("Retention Period", data.retention_period),
+            ("Project Name", data.project_name), ("Geographic Scope", data.geo_scope),
+            ("Lawful Basis", data.lawful_basis), ("Data Subjects", data.data_subjects),
+            ("Collection Source", data.collection_source), ("Retention Period", data.retention_period),
             ("Initial Risk Level", data.initial_risk)
         ]
         for i, (label, val) in enumerate(items):
@@ -131,49 +123,24 @@ async def generate_final_report(data: FinalReportRequest):
 
         prompt = f"""
         Act as a Senior Global Privacy Consultant. Write a formal DPIA Report for '{data.project_name}'.
-        Details: {data.project_desc} | Data: {data.data_collected} | Security: {data.security_measures} | Transfers: {data.intl_transfers}
-        Rights: {data.individual_rights} | Retention: {data.retention_period}
+        Audit context: {data.project_desc} | Data: {data.data_collected} | Security: {data.security_measures} | Transfers: {data.intl_transfers}
+        Transparency: {data.transparency_measures} | Minimization: {data.data_minimization} | Quality: {data.data_quality} | Rights: {data.individual_rights}
         
-        Structure the report exactly as follows:
+        Structure the report as follows:
         ## 2. Executive Summary
-        (Summarize the activity and overall compliance posture)
-        
         ## 3. Scope of Processing
-        (Define the nature, scale, and context of the processing activity)
-        
-        ## 4. Data Governance Analysis Table
-        You MUST provide the governance analysis in a Markdown table:
-        | Governance Area | Finding | Recommendation | Comment |
-        (For Comment, leave it empty. Areas: Transparency, Minimization, Quality)
-        
-        ## 5. Formal Risk Assessment Matrix
-        You MUST provide the risk matrix in a Markdown table:
-        | Privacy Risk | Recommended Mitigation | Audit Evidence Required | Comment |
-        (For Comment, leave it empty)
-        
+        ## 4. Data Governance Analysis Table (Markdown table: Area | Finding | Recommendation | Comment)
+        ## 5. Formal Risk Assessment Matrix (Markdown table: Risk | Mitigation | Evidence | Comment)
         ## 6. Final Risk Rating & Justification
-        Write this section exactly following this structure:
-        - **Initial Risk Rating:** {data.initial_risk}
-        - (Explain why the project was inherently risky before mitigations)
-        - **Residual Risk Rating (Post-Mitigation):** [Assess as Acceptable/Low/Medium]
-        - **Justification:** Provide a detailed numbered list covering:
-            1. Legal Foundations
-            2. Data Lifecycle Management
-            3. Robust Security
-            4. Transparency and Empowerment
-            5. Cross-Border Compliance
-            6. Special Safeguards (e.g., Employees or Children)
-        - (Concluding statement on project proceeding)
+        (Justify based on mitigations provided: {data.security_measures}, {data.data_minimization}, {data.individual_rights})
         
-        Tone: Corporate, Authoritative, Neutral. No mention of AI.
+        Tone: Corporate, Authoritative. No AI mentions.
         """
-        
         response = completion(model="gemini/gemini-2.5-flash", messages=[{"role": "user", "content": prompt}])
         add_formatted_text_to_word(doc, response.choices[0].message.content)
         
-        doc.add_paragraph("\nReport generated by DPIA Enterprise Systems. Valid for global compliance verification.")
         file_path = f"/tmp/Report.docx"
         doc.save(file_path)
-        return FileResponse(path=file_path, filename=f"Global_DPIA_{data.project_name}.docx")
+        return FileResponse(path=file_path, filename=f"DPIA_{data.project_name}.docx")
     except Exception as e:
         return {"status": "error", "message": str(e)}
